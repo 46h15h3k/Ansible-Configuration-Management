@@ -114,7 +114,7 @@ ansible-playbook setup.yml --check --diff
 
 After a successful run, the site is live at `http://<server-ip>/`.
 
-## Stretch goal: deploy from GitHub
+## Deploy from GitHub
 
 Set in `group_vars/all.yml`:
 
