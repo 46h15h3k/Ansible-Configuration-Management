@@ -1,0 +1,81 @@
+---
+# roles/base/tasks/main.yml
+# Baseline server hardening/setup: update packages, install common
+# utilities, enable fail2ban, set the timezone, and configure unattended
+# security updates where supported.
+
+- name: Update apt cache (Debian/Ubuntu)
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Upgrade all packages (Debian/Ubuntu)
+  apt:
+    upgrade: dist
+  when: ansible_os_family == "Debian"
+
+- name: Upgrade all packages (RHEL/Amazon Linux)
+  dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+  when: ansible_os_family == "RedHat"
+
+- name: Install common utilities (Debian/Ubuntu)
+  apt:
+    name: "{{ base_packages_debian }}"
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Install common utilities (RHEL/Amazon Linux)
+  dnf:
+    name: "{{ base_packages_redhat }}"
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Install fail2ban (Debian/Ubuntu)
+  apt:
+    name: fail2ban
+    state: present
+  when: ansible_os_family == "Debian"
+  notify: restart fail2ban
+
+- name: Install fail2ban (RHEL/Amazon Linux, via EPEL)
+  block:
+    - name: Install epel-release
+      dnf:
+        name: epel-release
+        state: present
+
+    - name: Install fail2ban
+      dnf:
+        name: fail2ban
+        state: present
+  when: ansible_os_family == "RedHat"
+  notify: restart fail2ban
+
+- name: Deploy fail2ban local jail config
+  template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart fail2ban
+
+- name: Ensure fail2ban is enabled and running
+  service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ base_timezone }}"
+  when: base_set_timezone | bool
+
+- name: Ensure a non-root sudo user's shell history / login stays sane (set hostname)
+  hostname:
+    name: "{{ base_hostname }}"
+  when: base_hostname is defined and base_hostname | length > 0

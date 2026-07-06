@@ -1,0 +1,27 @@
+---
+# setup.yml
+# Main entrypoint playbook. Runs each role in sequence against the
+# `webservers` group defined in inventory.ini.
+#
+# Usage:
+#   ansible-playbook -i inventory.ini setup.yml                # run everything
+#   ansible-playbook -i inventory.ini setup.yml --tags "app"   # run one role
+#   ansible-playbook -i inventory.ini setup.yml --tags "ssh,nginx"
+
+- name: Configure web server
+  hosts: webservers
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: base
+      tags: [base]
+
+    - role: ssh
+      tags: [ssh]
+
+    - role: nginx
+      tags: [nginx]
+
+    - role: app
+      tags: [app]

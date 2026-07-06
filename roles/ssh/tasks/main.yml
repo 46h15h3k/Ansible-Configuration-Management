@@ -1,0 +1,37 @@
+---
+# roles/ssh/tasks/main.yml
+# Adds the given public key(s) to the target user's authorized_keys and
+# applies a couple of sane sshd_config hardening defaults.
+
+- name: Ensure .ssh directory exists for {{ ssh_user }}
+  file:
+    path: "/home/{{ ssh_user }}/.ssh"
+    state: directory
+    owner: "{{ ssh_user }}"
+    group: "{{ ssh_user }}"
+    mode: "0700"
+
+- name: Add authorized public key(s)
+  authorized_key:
+    user: "{{ ssh_user }}"
+    state: present
+    key: "{{ item }}"
+  loop: "{{ authorized_public_keys }}"
+
+- name: Disable password authentication
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+    validate: "sshd -t -f %s"
+  when: ssh_disable_password_auth | bool
+  notify: restart sshd
+
+- name: Disable root login over SSH
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin no"
+    validate: "sshd -t -f %s"
+  when: ssh_disable_root_login | bool
+  notify: restart sshd

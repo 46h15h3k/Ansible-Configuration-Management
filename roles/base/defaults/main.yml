@@ -1,0 +1,35 @@
+---
+# roles/base/defaults/main.yml
+
+base_packages_debian:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - unzip
+  - ufw
+  - net-tools
+  - ca-certificates
+  - software-properties-common
+
+base_packages_redhat:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - unzip
+  - net-tools
+  - ca-certificates
+
+base_set_timezone: true
+base_timezone: "UTC"
+
+# Leave blank to skip setting a hostname
+base_hostname: ""
+
+# fail2ban jail defaults
+fail2ban_bantime: 3600
+fail2ban_findtime: 600
+fail2ban_maxretry: 5

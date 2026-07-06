@@ -1,0 +1,5 @@
+---
+# roles/app/defaults/main.yml
+
+app_owner: "{{ 'www-data' if ansible_os_family == 'Debian' else 'nginx' }}"
+app_group: "{{ 'www-data' if ansible_os_family == 'Debian' else 'nginx' }}"

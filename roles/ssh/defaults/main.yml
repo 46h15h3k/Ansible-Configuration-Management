@@ -1,0 +1,6 @@
+---
+# roles/ssh/defaults/main.yml
+
+# Set to false on first run if you haven't confirmed key-based login works yet.
+ssh_disable_password_auth: false
+ssh_disable_root_login: true

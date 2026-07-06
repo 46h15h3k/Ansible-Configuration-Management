@@ -1,0 +1,69 @@
+---
+# roles/app/tasks/main.yml
+# Deploys the static site either by uploading + unpacking a tarball
+# (default) or by cloning a GitHub repo (stretch goal), controlled by
+# `app_deploy_method` in group_vars/all.yml.
+
+- name: Ensure deploy directory exists
+  file:
+    path: "{{ app_deploy_dir }}"
+    state: directory
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+
+# --- Method 1: tarball upload (default) ---
+- name: Upload and unpack static site tarball
+  when: app_deploy_method == "tarball"
+  block:
+    - name: Upload website tarball
+      copy:
+        src: "{{ app_tarball_src }}"
+        dest: "/tmp/website.tar.gz"
+        mode: "0644"
+
+    - name: Unpack tarball into deploy directory
+      unarchive:
+        src: "/tmp/website.tar.gz"
+        dest: "{{ app_deploy_dir }}"
+        remote_src: true
+        owner: "{{ app_owner }}"
+        group: "{{ app_group }}"
+
+    - name: Clean up uploaded tarball
+      file:
+        path: "/tmp/website.tar.gz"
+        state: absent
+
+# --- Method 2: git clone (stretch goal) ---
+- name: Deploy static site from GitHub
+  when: app_deploy_method == "git"
+  block:
+    - name: Install git (Debian/Ubuntu)
+      apt:
+        name: git
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install git (RHEL/Amazon Linux)
+      dnf:
+        name: git
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Clone/update the site repo
+      git:
+        repo: "{{ app_git_repo }}"
+        dest: "{{ app_deploy_dir }}"
+        version: "{{ app_git_version }}"
+        force: true
+      become: true
+      become_user: "{{ app_owner }}"
+
+- name: Fix ownership/permissions on deployed site
+  file:
+    path: "{{ app_deploy_dir }}"
+    state: directory
+    recurse: true
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
