@@ -14,7 +14,6 @@ base_packages_debian:
   - software-properties-common
 
 base_packages_redhat:
-  - curl
   - wget
   - git
   - vim

@@ -1,142 +1,192 @@
-# Ansible Server Configuration Management
+# Ansible Project — Full Setup Walkthrough
 
-An Ansible playbook that fully configures a Linux server — base hardening,
-SSH key provisioning, nginx installation, and static site deployment — in
-one repeatable, idempotent run. Built as part of the
-[roadmap.sh DevOps](https://roadmap.sh/projects/configuration-management) curriculum.
+Two machines involved:
+- **[WSL]** = the WSL Ubuntu terminal on your Windows PC. This is the *control
+  node* — where you install Ansible and run `ansible-playbook`.
+- **[EC2]** = your EC2 instance. Ansible connects to it over SSH; you never
+  run Ansible commands here directly.
 
-## What it does
+Do every step in order. Don't skip ahead.
 
-Running `setup.yml` against a fresh server will:
+---
 
-1. **`base`** — update all packages, install common utilities (curl, git,
-   htop, unzip, etc.), install and enable `fail2ban` with a jail config,
-   and set the system timezone.
-2. **`ssh`** — add the given public key(s) to the target user's
-   `authorized_keys`, and optionally harden `sshd_config` (disable root
-   login / password auth).
-3. **`nginx`** — install nginx, deploy a server block pointing at the
-   site's deploy directory, open the firewall for HTTP, and start the
-   service.
-4. **`app`** — upload a tarball of a static site and unpack it into the
-   nginx web root. A stretch-goal mode clones the site straight from a
-   GitHub repo instead.
+## Step 0 — Open the right terminal
 
-Each role is idempotent — re-running the playbook makes no changes on a
-server that's already configured correctly.
+Open **WSL (Ubuntu)**, not PowerShell, not Git Bash. If you don't have it yet:
 
-## Repo structure
-
+**[Windows PowerShell, as Administrator]**
+```powershell
+wsl --install -d Ubuntu
 ```
-.
-├── ansible.cfg
-├── inventory.ini
-├── requirements.yml
-├── setup.yml
-├── group_vars/
-│   └── all.yml
-└── roles/
-    ├── base/
-    │   ├── tasks/main.yml
-    │   ├── handlers/main.yml
-    │   ├── defaults/main.yml
-    │   └── templates/jail.local.j2
-    ├── ssh/
-    │   ├── tasks/main.yml
-    │   ├── handlers/main.yml
-    │   └── defaults/main.yml
-    ├── nginx/
-    │   ├── tasks/main.yml
-    │   ├── handlers/main.yml
-    │   └── templates/nginx.conf.j2
-    └── app/
-        ├── tasks/main.yml
-        ├── defaults/main.yml
-        └── files/          # put your website.tar.gz here
+Restart if prompted, then open the "Ubuntu" app from the Start menu. All
+steps from here on are **[WSL]** unless stated otherwise.
+
+---
+
+## Step 1 — Install Ansible
+
+**[WSL]**
+```bash
+sudo apt update
+sudo apt install -y ansible git
+ansible --version
 ```
 
-Roles work on both Debian/Ubuntu (`apt`) and RHEL/Amazon Linux (`dnf`)
-targets — useful since I run Amazon Linux 2023 for other projects in this
-series but the roadmap.sh brief assumes a generic Linux box.
+---
 
-## Prerequisites
+## Step 2 — Move the project into WSL's own filesystem
 
-- Ansible installed locally (`pip install ansible` or your package
-  manager's build).
-- A running Linux server (EC2, DigitalOcean droplet, etc.) reachable over
-  SSH with a key you already hold.
-- Collections used by a couple of tasks (`ufw`, `firewalld`, `timezone`):
+**[WSL]**
+```bash
+mkdir -p ~/projects
+cp -r "/mnt/d/Learning/Configuration Management" ~/projects/ansible-config-mgt
+cd ~/projects/ansible-config-mgt
+```
 
-  ```bash
-  ansible-galaxy collection install -r requirements.yml
-  ```
+From now on, **every command in this guide runs from inside this folder**,
+unless marked otherwise.
 
-## Setup
+---
 
-1. Edit **`inventory.ini`** with your server's IP/hostname, SSH user, and
-   key path:
+## Step 3 — Install the Ansible collections the roles use
 
-   ```ini
-   [webservers]
-   web1 ansible_host=203.0.113.10 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
-   ```
+**[WSL]**
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
 
-2. Edit **`group_vars/all.yml`**:
-   - `authorized_public_keys` — your public key(s) for the `ssh` role.
-   - `app_tarball_src` — path to your static site tarball (default
-     `roles/app/files/website.tar.gz`), **or** set
-     `app_deploy_method: git` and fill in `app_git_repo` / `app_git_version`
-     for the stretch-goal flow.
+---
 
-3. Drop your site tarball in `roles/app/files/` (unless using the git
-   method):
+## Step 4 — Copy your EC2 `.pem` key into WSL
 
-   ```bash
-   tar -czf roles/app/files/website.tar.gz -C /path/to/your/site .
-   ```
+Find your `.pem` file (the one you downloaded from AWS when you created the
+EC2 instance). Copy it into WSL's own filesystem. 
 
-## Usage
+**[WSL]**
+```bash
+mkdir -p ~/.ssh
+cp /mnt/d/path/to/your-key.pem ~/.ssh/ec2-key.pem # you can use sudo if you get permission denied message.
+chmod 600 ~/.ssh/ec2-key.pem
+```
+
+Test the raw SSH connection before touching Ansible at all — this
+confirms the key works and also caches the host's fingerprint so Ansible
+won't fail on host-key verification later:
+
+**[WSL]**
+```bash
+ssh -i ~/.ssh/ec2-key.pem ec2-user@<your-ec2-public-ip>
+```
+(Use `ec2-user` if your instance is Amazon Linux. Use `ubuntu` instead if
+it's an Ubuntu AMI.)
+
+Type `yes` when asked about the host fingerprint. If you land at a shell
+prompt on the EC2 box, you're good — type `exit` to come back.
+
+**If this step fails, stop here and fix it before continuing.** Nothing
+past this point will work if plain SSH doesn't.
+
+---
+
+## Step 5 — Generate a keypair for the `ssh` role
+
+This is a *separate* key from your `.pem` — it's the one the `ssh` role
+will provision on the server, demonstrating the role actually granting
+access rather than just replaying AWS's own key.
+
+**[WSL]**
+```bash
+ssh-keygen -t ed25519 -C "user-ansible" -f ~/.ssh/ansible_key -N ""
+cat ~/.ssh/ansible_key.pub
+```
+
+Copy the full line it prints (starts with `ssh-ed25519 AAAA...`). You'll
+paste it into `group_vars/all.yml` in Step 7.
+
+---
+
+## Step 6 — Get a static site tarball
+
+The `app` role needs a `.tar.gz` of some static HTML site. Pick **one**:
+
+**Option A — use a placeholder site (fastest, fine for this project)**
+```bash
+mkdir -p ~/sample-site
+cat > ~/sample-site/index.html << 'EOF'
+<!DOCTYPE html>
+<html><head><title>Deployed via Ansible</title></head>
+<body><h1>Deployed via Ansible</h1><p>It works.</p></body></html>
+EOF
+tar -czf roles/app/files/website.tar.gz -C ~/sample-site .
+```
+
+**Option B — use a real site folder you already have**
+Replace `~/path/to/your/site` with wherever that site's `index.html`
+actually lives:
+```bash
+tar -czf roles/app/files/website.tar.gz -C ~/path/to/your/site .
+```
+
+Either way, confirm the tarball was created and contains files:
+```bash
+tar -tzf roles/app/files/website.tar.gz
+```
+You should see `./` and `./index.html` (and any other site files) listed.
+
+---
+
+## Step 7 — Edit your two config files
+
+**[WSL, using nano/vim, or edit from Windows and it'll still be visible in WSL]**
+
+### 7a. `inventory.ini`
+```ini
+[webservers]
+web1 ansible_host=<your-ec2-public-ip> ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/ec2-key.pem
+
+[webservers:vars]
+ansible_python_interpreter=/usr/bin/python3
+```
+Use `ubuntu` instead of `ec2-user` if that's your AMI's default user.
+
+### 7b. `group_vars/all.yml`
+Update just these two values (leave the rest as-is):
+```yaml
+authorized_public_keys:
+  - "<your-public-key>"
+
+app_tarball_filename: "website.tar.gz"
+```
+
+---
+
+## Step 8 — Run it
+
+**[WSL]**, from inside `~/projects/ansible-config-mgt`:
 
 ```bash
-# Run every role
-ansible-playbook setup.yml
+# Dry run first, to catch obvious mistakes without changing anything
+ansible-playbook -i inventory.ini setup.yml --check
 
-# Run a single role
-ansible-playbook setup.yml --tags "app"
-ansible-playbook setup.yml --tags "nginx"
+# Real run, everything
+ansible-playbook -i inventory.ini setup.yml
 
-# Run a subset
-ansible-playbook setup.yml --tags "ssh,nginx"
-
-# Dry run first (recommended)
-ansible-playbook setup.yml --check --diff
+# Or just one role at a time, while debugging
+ansible-playbook -i inventory.ini setup.yml --tags "base"
+ansible-playbook -i inventory.ini setup.yml --tags "ssh"
+ansible-playbook -i inventory.ini setup.yml --tags "nginx"
+ansible-playbook -i inventory.ini setup.yml --tags "app"
 ```
 
-After a successful run, the site is live at `http://<server-ip>/`.
+---
 
-## Deploy from GitHub
+## Step 9 — Verify
 
-Set in `group_vars/all.yml`:
-
-```yaml
-app_deploy_method: "git"
-app_git_repo: "https://github.com/your-username/your-static-site.git"
-app_git_version: "main"
+Open in a browser:
 ```
+http://<your-ec2-public-ip>/
+```
+You should see your site. If it times out (not "connection refused"), it's
+almost always the **EC2 Security Group** missing an inbound rule for port
+80 — check that in the AWS console, not in Ansible.
 
-Then `ansible-playbook setup.yml --tags "app"` clones (or fast-forwards)
-the repo directly into the nginx web root instead of unpacking a tarball
-— handy for pushing updates without re-uploading a new archive each time.
-
-## Notes / gotchas
-
-- If `PasswordAuthentication no` locks you out because your key isn't
-  actually working yet, leave `ssh_disable_password_auth: false` in
-  `roles/ssh/defaults/main.yml` until you've confirmed key-based login,
-  then flip it on and re-run with `--tags ssh`.
-- On EC2, remember the instance's **Security Group** also needs an inbound
-  rule for port 80 — `ufw`/`firewalld` rules inside the box won't help if
-  the cloud-level firewall is blocking it first.
-- `--check --diff` won't fully dry-run tasks that use `unarchive` or
-  `git` (they report "would have changed" without inspecting archive
-  contents), so treat that mode as a sanity check, not a guarantee.

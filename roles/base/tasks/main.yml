@@ -41,17 +41,14 @@
   when: ansible_os_family == "Debian"
   notify: restart fail2ban
 
-- name: Install fail2ban (RHEL/Amazon Linux, via EPEL)
-  block:
-    - name: Install epel-release
-      dnf:
-        name: epel-release
-        state: present
-
-    - name: Install fail2ban
-      dnf:
-        name: fail2ban
-        state: present
+- name: Install fail2ban (RHEL/Amazon Linux)
+  # fail2ban is available directly in Amazon Linux 2023's own repos as of
+  # 2025 — no EPEL required (EPEL isn't even installable cleanly on
+  # AL2023, since its release RPM checks for a "redhat-release" package
+  # AL2023 doesn't provide).
+  dnf:
+    name: fail2ban
+    state: present
   when: ansible_os_family == "RedHat"
   notify: restart fail2ban
 

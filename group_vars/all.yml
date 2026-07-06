@@ -6,21 +6,21 @@
 # Public key(s) to add to the server's authorized_keys.
 # Replace with your own key(s), or override with -e / host_vars.
 authorized_public_keys:
-  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyReplaceMeWithYourOwnPublicKey user@laptop"
+  - "<your-public-key-here>"
 
 ssh_user: "{{ ansible_user | default('ubuntu') }}"
 
 # --- app role ---
 # Local path (on the control node) to the tarball you want deployed.
-app_tarball_src: "files/website.tar.gz"
+# app_tarball_src: "files/website.tar.gz"
 
 # Where the site is unpacked to on the server.
 app_deploy_dir: "/var/www/html"
 
-# Stretch goal: deploy straight from a GitHub repo instead of a tarball.
-app_deploy_method: "tarball"   # "tarball" or "git"
-app_git_repo: "https://github.com/your-username/your-static-site.git"
-app_git_version: "main"
+# # Stretch goal: deploy straight from a GitHub repo instead of a tarball.
+# app_deploy_method: "tarball"   # "tarball" or "git"
+# app_git_repo: "https://github.com/your-username/your-static-site.git"
+# app_git_version: "main"
 
 # --- nginx role ---
 nginx_server_name: "_"

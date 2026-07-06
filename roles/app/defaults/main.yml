@@ -3,3 +3,10 @@
 
 app_owner: "{{ 'www-data' if ansible_os_family == 'Debian' else 'nginx' }}"
 app_group: "{{ 'www-data' if ansible_os_family == 'Debian' else 'nginx' }}"
+
+# Overridden by group_vars/all.yml. Kept here too as a safe fallback so
+# the role never fails with "app_deploy_method is undefined".
+app_deploy_method: "tarball"
+app_deploy_dir: "/var/www/html"
+app_tarball_filename: "website.tar.gz"
+
