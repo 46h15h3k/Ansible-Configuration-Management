@@ -114,8 +114,6 @@ You should see `./` and `./index.html` (and any other site files) listed.
 
 ## Step 7 — Edit your two config files
 
-**[WSL, using nano/vim, or edit from Windows and it'll still be visible in WSL]**
-
 ### 7a. `inventory.ini`
 ```ini
 [webservers]
@@ -165,4 +163,4 @@ http://<your-ec2-public-ip>/
 ```
 You should see your site. If it times out (not "connection refused"), it's
 almost always the **EC2 Security Group** missing an inbound rule for port
-80 — check that in the AWS console, not in Ansible.
+80 in security group.
