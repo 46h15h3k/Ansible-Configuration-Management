@@ -1,28 +1,5 @@
 # Ansible Project — Full Setup Walkthrough
 
-Two machines involved:
-- **[WSL]** = the WSL Ubuntu terminal on your Windows PC. This is the *control
-  node* — where you install Ansible and run `ansible-playbook`.
-- **[EC2]** = your EC2 instance. Ansible connects to it over SSH; you never
-  run Ansible commands here directly.
-
-Do every step in order. Don't skip ahead.
-
----
-
-## Step 0 — Open the right terminal
-
-Open **WSL (Ubuntu)**, not PowerShell, not Git Bash. If you don't have it yet:
-
-**[Windows PowerShell, as Administrator]**
-```powershell
-wsl --install -d Ubuntu
-```
-Restart if prompted, then open the "Ubuntu" app from the Start menu. All
-steps from here on are **[WSL]** unless stated otherwise.
-
----
-
 ## Step 1 — Install Ansible
 
 **[WSL]**
